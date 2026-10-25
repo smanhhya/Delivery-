@@ -586,24 +586,23 @@
             });
             renderDriverOrdersUI();
         };
-        // دالة تشغيل جرس التنبيه للمندوب 🔔
+        // دالة تشغيل جرس التنبيه للمندوب 🔔 (صوت رنين رقمي بدون ملفات خارجية)
         window.playNewOrderSound = () => {
             try {
-                // صوت تنبيه (بييب قصير) مصنع بالبرمجة بدون الحاجة لملفات خارجية
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // نغمة رنين مبهجة
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.start();
-                osc.stop(audioCtx.currentTime + 0.3);
+                osc.stop(audioCtx.currentTime + 0.35);
             } catch (e) {}
         };
 
-        
+        // 3. جلب الأوردرات والفلترة الذكية (مع تفعيل جرس التنبيه للأوردر الجديد)
         window.fetchDriverOrders = (isManualRefresh = false) => {
             const container = document.getElementById('orders-container');
             const refreshIcon = document.getElementById('refresh-icon');
@@ -626,6 +625,8 @@
             unsubscribeOrders = db.collection('orders')
                 .where('status', 'in', ['dispatched', 'no_answer', 'completed'])
                 .onSnapshot(snap => {
+                    let oldDispatchedCount = currentOrdersList.filter(o => o.status === 'dispatched').length;
+
                     currentOrdersList = [];
                     let collectedCash = 0; 
                     let driverEarnings = 0; 
@@ -635,9 +636,9 @@
 
                     snap.forEach(doc => {
                         let data = doc.data();
-                        // إخفاء الطلب فقط إذا كان مكتملاً وتم توريد نقديته (يسمح بظهوره لو أُعيد توجيهه للمندوب)
-                        if (data.status === 'completed' && data.isSupplied === true) return;
-
+                        // إخفاء الطلب فقط إذا كان مكتملاً وتم توريد نقديته
+                        if (data.status === 'completed' && data.isSupplied === true) return; 
+                        
                         let orderDriverPhone = window.normalizePhone(data.driverPhone || '');
                         let orderDriverName = (data.driverName || '').toString().trim();
                         if(orderDriverPhone === currentDriverPhone || (orderDriverName && orderDriverName === currentDriverName.trim())) {
@@ -656,6 +657,11 @@
                             }
                         }
                     });
+
+                    // [هنا المكان الصحيح لجرس التنبيه جوه الـ onSnapshot بالظبط]
+                    if (countDispatched > oldDispatchedCount && oldDispatchedCount > 0) {
+                        window.playNewOrderSound();
+                    }
 
                     // ترتيب ذكي: الجاري أولاً -> لم يرد -> المكتمل في الأسفل، مع الحفاظ على أقدمية الطلب
                     const statusWeight = { 'dispatched': 1, 'no_answer': 2, 'completed': 3 };
@@ -687,6 +693,7 @@
                     container.innerHTML = '<div class="text-center py-12 bg-red-50 text-red-600 rounded-3xl border border-red-200 font-black text-xs">حدث خطأ أثناء تحميل الطلبات، تأكد من الاتصال بالإنترنت</div>'; 
                 });
         };
+
 
         // فتح الخرائط والواتساب بأمان تام عبر ID الأوردر
         window.openMapsByOrder = (orderId) => {
