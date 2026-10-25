@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+مم<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -586,7 +586,24 @@
             });
             renderDriverOrdersUI();
         };
+        // دالة تشغيل جرس التنبيه للمندوب 🔔
+        window.playNewOrderSound = () => {
+            try {
+                // صوت تنبيه (بييب قصير) مصنع بالبرمجة بدون الحاجة لملفات خارجية
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // نغمة رنين مبهجة
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {}
+        };
 
+        
         window.fetchDriverOrders = (isManualRefresh = false) => {
             const container = document.getElementById('orders-container');
             const refreshIcon = document.getElementById('refresh-icon');
