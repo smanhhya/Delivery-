@@ -345,11 +345,17 @@
     <!-- Script البرمجة والربط -->
     <script>
         // ==========================================
-        // إعدادات الإصدار ونظام التحديث الذكي
+        // إعدادات الإصدار ونظام التحديث التلقائي (بدون تعديل يدوي)
         // ==========================================
-        const CURRENT_APP_VERSION = "1.1.0";
-        // (اختياري) لو بترفع APK المندوب على GitHub Releases اكتب اسم المستودع هنا مثل: "smanhhya/sman-driver-app"
-        const DRIVER_GITHUB_REPO = "";
+        const LOCAL_VERSION_CODE = (window.SmanDriverNative && typeof window.SmanDriverNative.getAppVersionCode === 'function')
+            ? Number(window.SmanDriverNative.getAppVersionCode()) || 0
+            : 0;
+        const CURRENT_APP_VERSION = (window.SmanDriverNative && typeof window.SmanDriverNative.getAppVersionName === 'function' && window.SmanDriverNative.getAppVersionName())
+            ? String(window.SmanDriverNative.getAppVersionName()).trim()
+            : "1.1.0";
+        const DRIVER_GITHUB_REPO = (window.SmanDriverNative && typeof window.SmanDriverNative.getGitHubRepo === 'function' && window.SmanDriverNative.getGitHubRepo())
+            ? String(window.SmanDriverNative.getGitHubRepo()).trim()
+            : "";
 
         // 1. تهيئة Firebase مع تفعيل العمل بدون إنترنت
         const firebaseConfig = { 
@@ -1280,12 +1286,17 @@
             submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> إرسال للإدارة';
         };
 
-        // ==========================================
-        // 6. منظومة التحديث الاحترافية (إشعار لايف + شريط + فحص يدوي + إجباري/اختياري)
-        // ==========================================
         function applyDetectedUpdate(info, isManualTrigger = false) {
-            if (!info || !info.version || !info.url) return false;
-            if (window.compareVersions(info.version, CURRENT_APP_VERSION) <= 0) {
+            if (!info || !info.url) return false;
+
+            let isNewer = false;
+            if (Number(info.versionCode) > 0 && LOCAL_VERSION_CODE > 0) {
+                isNewer = Number(info.versionCode) > LOCAL_VERSION_CODE;
+            } else if (info.version) {
+                isNewer = window.compareVersions(info.version, CURRENT_APP_VERSION) > 0;
+            }
+
+            if (!isNewer) {
                 availableUpdateInfo = null;
                 document.getElementById('update-alert-banner')?.classList.add('hidden');
                 document.getElementById('update-dot-badge')?.classList.add('hidden');
@@ -1294,7 +1305,7 @@
             }
 
             availableUpdateInfo = info;
-            const cleanVer = 'v' + String(info.version).replace(/^v/i, '');
+            const cleanVer = 'v' + String(info.version || ('1.' + info.versionCode)).replace(/^v/i, '');
             const notesTxt = info.msg || 'يتوفر إصدار جديد من تطبيق المندوب بتحسينات ومزايا جديدة.';
 
             document.getElementById('banner-new-ver').innerText = cleanVer;
@@ -1333,43 +1344,59 @@
         window.downloadDriverAppUpdate = () => {
             if (!availableUpdateInfo || !availableUpdateInfo.url) return;
             const url = availableUpdateInfo.url;
-            showToast('جاري فتح رابط تحميل التحديث... 📥');
-            try {
-                const a = document.createElement('a');
-                a.href = url;
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            } catch (e) {
-                window.open(url, '_system');
+            showToast('جاري تحميل التحديث للتثبيت فوق النسخة الحالية... 📥');
+            if (window.SmanDriverNative && typeof window.SmanDriverNative.openExternalUrl === 'function') {
+                const opened = window.SmanDriverNative.openExternalUrl(url);
+                if (opened) return;
             }
+            window.open(url, '_blank');
         };
 
         async function fetchGitHubDriverRelease() {
             if (!DRIVER_GITHUB_REPO) return null;
             try {
-                const res = await fetch(`https://api.github.com/repos/${DRIVER_GITHUB_REPO}/releases/latest`, { cache: 'no-store' });
+                const res = await fetch(`https://api.github.com/repos/${DRIVER_GITHUB_REPO}/releases/tags/latest-driver`, { cache: 'no-store' });
                 if (!res.ok) return null;
                 const rel = await res.json();
                 const apkAsset = Array.isArray(rel.assets) ? rel.assets.find(a => a.name && a.name.toLowerCase().endsWith('.apk')) : null;
-                const ver = String(rel.tag_name || '').replace(/^v/i, '').trim();
                 const url = apkAsset?.browser_download_url || rel.html_url || '';
-                if (!ver || !url) return null;
-                return { version: ver, url: url, msg: rel.body || 'إصدار جديد جاهز للتحميل من GitHub.', force: false };
+                if (!url) return null;
+
+                const body = String(rel.body || '');
+                const codeMatch = body.match(/VERSION_CODE\s*:\s*(\d+)/i);
+                const versionCode = codeMatch ? parseInt(codeMatch[1], 10) : 0;
+                const verMatch = body.match(/الإصدار\s*:\s*v?([\d.]+)/i);
+                const version = verMatch ? verMatch[1] : (versionCode > 0 ? `1.${versionCode}` : '');
+                const detailsMatch = body.match(/التفاصيل\s*:\s*([\s\S]+)/i);
+                const cleanNotes = detailsMatch ? detailsMatch[1].trim() : 'تحديث جديد لتحسين الأداء وإضافة مزايا جديدة.';
+
+                return { versionCode, version, url, msg: cleanNotes, force: false };
             } catch (e) {
                 return null;
             }
         }
 
         function startLiveUpdateListener() {
-            // 1. مراقبة لحظية من Firebase (أول ما تنزل تحديث من الإدارة هيظهر الإشعار للمندوب فوراً)
+            // 1. فحص تلقائي فوري من GitHub Release (latest-driver) + كل 15 دقيقة تلقائياً
+            const runAutoCheck = () => {
+                if (!DRIVER_GITHUB_REPO || !navigator.onLine) return;
+                fetchGitHubDriverRelease().then(info => {
+                    if (info) applyDetectedUpdate(info, false);
+                });
+            };
+            runAutoCheck();
+            setInterval(runAutoCheck, 15 * 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') runAutoCheck();
+            });
+
+            // 2. مراقبة احتياطية من Firebase (لو حبيت تجبر تحديث برسالة خاصة)
             db.collection('inventory').doc('settings').onSnapshot(doc => {
                 if (!doc.exists) return;
                 const data = doc.data() || {};
                 if (data.driverAppVersion && data.driverUpdateUrl) {
                     applyDetectedUpdate({
+                        versionCode: Number(data.driverVersionCode) || 0,
                         version: String(data.driverAppVersion).trim(),
                         url: String(data.driverUpdateUrl).trim(),
                         msg: data.driverUpdateMsg || '',
@@ -1377,13 +1404,6 @@
                     }, false);
                 }
             }, () => {});
-
-            // 2. فحص GitHub Releases تلقائياً لو تم تحديد المستودع
-            if (DRIVER_GITHUB_REPO && navigator.onLine) {
-                fetchGitHubDriverRelease().then(info => {
-                    if (info) applyDetectedUpdate(info, false);
-                });
-            }
         }
 
         window.checkDriverAppUpdate = async (isManual = true) => {
@@ -1397,24 +1417,27 @@
             try {
                 let foundUpdate = false;
 
-                // فحص Firebase أولاً
-                const doc = await db.collection('inventory').doc('settings').get({ source: 'server' }).catch(() => db.collection('inventory').doc('settings').get());
-                if (doc && doc.exists) {
-                    const data = doc.data() || {};
-                    if (data.driverAppVersion && data.driverUpdateUrl) {
-                        foundUpdate = applyDetectedUpdate({
-                            version: String(data.driverAppVersion).trim(),
-                            url: String(data.driverUpdateUrl).trim(),
-                            msg: data.driverUpdateMsg || '',
-                            force: Boolean(data.driverForceUpdate)
-                        }, isManual);
-                    }
-                }
-
-                // فحص GitHub Releases لو مفيش تحديث في Firebase
-                if (!foundUpdate && DRIVER_GITHUB_REPO) {
+                // 1. فحص GitHub Release التلقائي (latest-driver)
+                if (DRIVER_GITHUB_REPO) {
                     const ghInfo = await fetchGitHubDriverRelease();
                     if (ghInfo) foundUpdate = applyDetectedUpdate(ghInfo, isManual);
+                }
+
+                // 2. فحص احتياطي من Firebase
+                if (!foundUpdate) {
+                    const doc = await db.collection('inventory').doc('settings').get({ source: 'server' }).catch(() => db.collection('inventory').doc('settings').get());
+                    if (doc && doc.exists) {
+                        const data = doc.data() || {};
+                        if (data.driverAppVersion && data.driverUpdateUrl) {
+                            foundUpdate = applyDetectedUpdate({
+                                versionCode: Number(data.driverVersionCode) || 0,
+                                version: String(data.driverAppVersion).trim(),
+                                url: String(data.driverUpdateUrl).trim(),
+                                msg: data.driverUpdateMsg || '',
+                                force: Boolean(data.driverForceUpdate)
+                            }, isManual);
+                        }
+                    }
                 }
 
                 if (!foundUpdate && isManual) {
