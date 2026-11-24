@@ -1,9 +1,17 @@
-name: Build Sman Driver APK
+name: Build & Release Sman Driver APK
 
 on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'ملاحظات التحديث التي ستظهر للمندوب'
+        required: false
+        default: 'تحديث جديد لتحسين الأداء وإضافة مرحلة استلام الطلبات.'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -12,6 +20,16 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Read Version from package.json
+        id: pkg
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          echo "version=$VER" >> $GITHUB_OUTPUT
+
+      - name: Sync Version into www/index.html
+        run: |
+          sed -i -E "s/const CURRENT_APP_VERSION = \"[^\"]+\";/const CURRENT_APP_VERSION = \"${{ steps.pkg.outputs.version }}\";/g" www/index.html
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,9 +48,20 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Inject Microphone & Internet Permissions
+      - name: Inject Version & Microphone Permissions
         run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/g" android/app/build.gradle
+          sed -i -E "s/versionName \"[^\"]+\"/versionName \"${{ steps.pkg.outputs.version }}\"/g" android/app/build.gradle
           sed -i 's/<application/<uses-permission android:name="android.permission.RECORD_AUDIO" \/>\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" \/>\n    <application/g' android/app/src/main/AndroidManifest.xml
+
+      - name: Restore Consistent Debug Keystore (Optional for In-Place Updates)
+        run: |
+          mkdir -p ~/.android
+          if [ -n "${{ secrets.DRIVER_DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.DRIVER_DEBUG_KEYSTORE_BASE64 }}" | base64 --decode > ~/.android/debug.keystore
+          elif [ -f "driver-debug.keystore" ]; then
+            cp driver-debug.keystore ~/.android/debug.keystore
+          fi
 
       - name: Build Android APK
         run: |
@@ -40,8 +69,25 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload Ready APK
+      - name: Upload Ready APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Sman-Hehia-Driver-APK
+          name: Sman-Hehia-Driver-APK-v${{ steps.pkg.outputs.version }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish GitHub Release for Auto-Update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_VER: ${{ steps.pkg.outputs.version }}
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes || github.event.head_commit.message }}
+        run: |
+          TAG="v${APP_VER}"
+          APK_OUT="Sman-Hehia-Driver-${TAG}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_OUT"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_OUT" --clobber
+          else
+            gh release create "$TAG" "$APK_OUT" \
+              --title "كابتن سمان ههيا ${TAG}" \
+              --notes "${RELEASE_NOTES:-تحديث جديد لتطبيق مندوب سمان ههيا}"
+          fi
