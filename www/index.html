@@ -169,20 +169,24 @@
                 <span id="stat-active-count" class="bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2.5 py-0.5 rounded-full text-[10px] font-black">0 طلب جاري</span>
             </div>
             <div class="p-4">
-                <div class="grid grid-cols-2 gap-3 mb-3">
-                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
-                        <span class="block text-[10px] font-extrabold text-slate-500 mb-1">إجمالي الكاش المحصل</span>
-                        <span id="stat-collected-cash" class="text-xl font-black text-slate-800">0 <span class="text-xs">ج</span></span>
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="bg-amber-50/70 p-2.5 rounded-2xl border border-amber-200/70 text-center">
+                        <span class="block text-[9px] font-extrabold text-amber-800 mb-1">💵 الكاش في إيدك</span>
+                        <span id="stat-collected-cash" class="text-base font-black text-slate-800">0 <span class="text-[10px]">ج</span></span>
                     </div>
-                    <div class="bg-emerald-50/70 p-3 rounded-2xl border border-emerald-100 text-center">
-                        <span class="block text-[10px] font-extrabold text-emerald-700 mb-1">عمولتي (التوصيل)</span>
-                        <span id="stat-driver-earnings" class="text-xl font-black text-emerald-600">0 <span class="text-xs">ج</span></span>
+                    <div class="bg-indigo-50/70 p-2.5 rounded-2xl border border-indigo-200/70 text-center">
+                        <span class="block text-[9px] font-extrabold text-indigo-800 mb-1">💳 تحويل للمتجر</span>
+                        <span id="stat-collected-online" class="text-base font-black text-indigo-700">0 <span class="text-[10px]">ج</span></span>
+                    </div>
+                    <div class="bg-emerald-50/70 p-2.5 rounded-2xl border border-emerald-200/70 text-center">
+                        <span class="block text-[9px] font-extrabold text-emerald-700 mb-1">🛵 عمولتك</span>
+                        <span id="stat-driver-earnings" class="text-base font-black text-emerald-600">0 <span class="text-[10px]">ج</span></span>
                     </div>
                 </div>
-                <div class="bg-gradient-to-l from-blue-50 to-indigo-50 p-3.5 rounded-2xl border border-blue-100 flex justify-between items-center mb-3">
+                <div id="stat-net-remit-box" class="bg-gradient-to-l from-blue-50 to-indigo-50 p-3.5 rounded-2xl border border-blue-100 flex justify-between items-center mb-3">
                     <div>
-                        <span class="text-xs font-black text-blue-900 block">الصافي لتوريده للإدارة:</span>
-                        <span class="text-[10px] font-bold text-blue-600/80">بعد خصم عمولة توصيلك</span>
+                        <span id="stat-net-remit-title" class="text-xs font-black text-blue-900 block">الصافي لتوريده كاش للإدارة:</span>
+                        <span id="stat-net-remit-sub" class="text-[10px] font-bold text-blue-600/80">الكاش في إيدك − عمولة توصيلك</span>
                     </div>
                     <span id="stat-net-remit" class="text-2xl font-black text-blue-700">0 <span class="text-sm">ج</span></span>
                 </div>
@@ -260,6 +264,83 @@
                 <button type="button" id="submit-note-btn" onclick="submitProblemNote()" class="col-span-2 bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all shadow-md shadow-amber-500/20 active:scale-95 text-xs flex items-center justify-center gap-1.5">
                     <i class="fa-solid fa-paper-plane"></i> إرسال للإدارة
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4.5 نافذة تأكيد التسليم وتحديد طريقة الدفع الفعلية (كاش / تحويل / نص ونص) -->
+    <div id="delivery-payment-modal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-[85] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden modal-pop border border-slate-200">
+            <div class="bg-gradient-to-l from-slate-900 via-brand-dark to-slate-900 text-white px-5 py-4 flex justify-between items-center">
+                <div>
+                    <h3 class="font-black text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check text-emerald-400"></i> تأكيد التسليم والتحصيل
+                    </h3>
+                    <p id="dp-customer-name" class="text-[11px] font-bold text-emerald-200/90 mt-0.5 truncate"></p>
+                </div>
+                <button type="button" onclick="closeDeliveryPaymentModal()" class="w-8 h-8 rounded-full bg-white/15 hover:bg-red-500 text-white flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+
+            <div class="p-4 space-y-3.5">
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex justify-between items-center">
+                    <span class="text-xs font-black text-slate-600">إجمالي الفاتورة:</span>
+                    <span id="dp-order-total-display" class="text-xl font-black text-brand-primary">0 ج.م</span>
+                </div>
+
+                <div id="dp-prepaid-warning" class="hidden bg-emerald-50 border border-emerald-300 text-emerald-900 p-2.5 rounded-xl text-[11px] font-black leading-relaxed">
+                    <i class="fa-solid fa-shield-halved text-emerald-600 ml-1"></i> الطلب مسجّل مسبقاً كـ (خالص أونلاين) — لا تحصّل كاش إلا إذا أبلغتك الإدارة.
+                </div>
+
+                <div>
+                    <span class="block text-[11px] font-black text-slate-600 mb-2">كيف دفع العميل عند الاستلام؟</span>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" id="dp-btn-cash" onclick="selectDeliveryPayMethod('cash')" class="py-2.5 px-1.5 rounded-xl border-2 text-[11px] font-black transition-all flex flex-col items-center gap-1">
+                            <span class="text-base">💵</span>
+                            <span>كاش بالكامل</span>
+                        </button>
+                        <button type="button" id="dp-btn-online" onclick="selectDeliveryPayMethod('online')" class="py-2.5 px-1.5 rounded-xl border-2 text-[11px] font-black transition-all flex flex-col items-center gap-1">
+                            <span class="text-base">💳</span>
+                            <span>تحويل للمتجر</span>
+                        </button>
+                        <button type="button" id="dp-btn-split" onclick="selectDeliveryPayMethod('split')" class="py-2.5 px-1.5 rounded-xl border-2 text-[11px] font-black transition-all flex flex-col items-center gap-1">
+                            <span class="text-base">⚖️</span>
+                            <span>جزء وجزء</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- خانات التقسيم (تظهر عند اختيار جزء وجزء فقط) -->
+                <div id="dp-split-inputs" class="hidden bg-indigo-50/70 border border-indigo-200 rounded-2xl p-3 space-y-2">
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <label class="block text-[10px] font-black text-amber-900 mb-1">💵 استلمت كاش (ج)</label>
+                            <input type="number" id="dp-cash-input" min="0" inputmode="numeric" oninput="syncDeliverySplit('cash')" class="w-full bg-white border-2 border-amber-300 rounded-xl p-2 text-center font-black text-sm text-slate-900 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-indigo-900 mb-1">💳 تحويل للمتجر (ج)</label>
+                            <input type="number" id="dp-online-input" min="0" inputmode="numeric" oninput="syncDeliverySplit('online')" class="w-full bg-white border-2 border-indigo-300 rounded-xl p-2 text-center font-black text-sm text-indigo-900 outline-none">
+                        </div>
+                    </div>
+                    <p class="text-[10px] font-bold text-indigo-700 text-center">اكتب الكاش اللي استلمته والباقي يتحسب تحويل أوتوماتيك</p>
+                </div>
+
+                <!-- ملاحظة اختيارية للتحويل -->
+                <div id="dp-transfer-note-wrap" class="hidden">
+                    <label class="block text-[10px] font-black text-slate-600 mb-1">ملاحظة التحويل للإدارة (اختياري — مثال: إنستاباي / رقم المحفظة)</label>
+                    <input type="text" id="dp-transfer-note" placeholder="مثال: حوّل إنستاباي باسم..." class="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+                </div>
+
+                <input type="hidden" id="dp-order-id">
+                <input type="hidden" id="dp-order-total-val">
+
+                <div class="grid grid-cols-3 gap-2 pt-1">
+                    <button type="button" onclick="closeDeliveryPaymentModal()" class="col-span-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-3 rounded-xl text-xs">تراجع</button>
+                    <button type="button" id="dp-confirm-btn" onclick="confirmDeliveryWithPayment()" class="col-span-2 bg-brand-primary hover:bg-emerald-800 text-white font-black py-3 rounded-xl text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-check-double"></i> تأكيد التسليم والحساب
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -419,6 +500,18 @@
                     : Math.max(0, (Number(o.total) || 0) - (Number(o.paidOnline) || 0));
             }
             return Number(o.total) || 0;
+        };
+
+        window.getOrderOnlineAmount = (o) => {
+            if (!o) return 0;
+            const total = Number(o.total) || 0;
+            if (o.paymentMethod === 'online') return total;
+            if (o.paymentMethod === 'split') {
+                return (o.paidOnline !== undefined && o.paidOnline !== null)
+                    ? (Number(o.paidOnline) || 0)
+                    : Math.max(0, total - window.getOrderCashToCollect(o));
+            }
+            return 0;
         };
 
         window.showToast = (message, type = 'success') => {
@@ -744,6 +837,7 @@
                 .onSnapshot(snap => {
                     currentOrdersList = [];
                     let collectedCash = 0; 
+                    let collectedOnline = 0;
                     let driverEarnings = 0; 
                     let countForDriver = 0;
                     let countDispatched = 0;
@@ -753,7 +847,7 @@
 
                     snap.forEach(doc => {
                         let data = doc.data();
-                        if (data.status === 'completed' && data.isSupplied === true) return;
+                        if (data.status === 'completed' && (data.isSupplied === true || data.isReconciled === true)) return;
 
                         let orderDriverPhone = window.normalizePhone(data.driverPhone || '');
                         let orderDriverName = (data.driverName || '').toString().trim();
@@ -774,6 +868,7 @@
                             } else if (data.status === 'completed') {
                                 countCompleted++;
                                 collectedCash += window.getOrderCashToCollect(data);
+                                collectedOnline += window.getOrderOnlineAmount(data);
                                 driverEarnings += fee;
                             }
                         }
@@ -803,14 +898,32 @@
                     });
 
                     let activeCount = countDispatched + countNoAnswer;
-                    let netRemit = Math.max(0, collectedCash - driverEarnings);
+                    let netDiff = collectedCash - driverEarnings;
 
                     document.getElementById('stat-active-count').innerText = countForDriver > 0
                         ? `${countForDriver} للاستلام • ${activeCount} جاري`
                         : `${activeCount} طلب جاري`;
-                    document.getElementById('stat-collected-cash').innerHTML = `${collectedCash.toLocaleString()} <span class="text-xs">ج</span>`;
-                    document.getElementById('stat-driver-earnings').innerHTML = `${driverEarnings.toLocaleString()} <span class="text-xs">ج</span>`;
-                    document.getElementById('stat-net-remit').innerHTML = `${netRemit.toLocaleString()} <span class="text-sm">ج</span>`;
+                    document.getElementById('stat-collected-cash').innerHTML = `${collectedCash.toLocaleString()} <span class="text-[10px]">ج</span>`;
+                    const onlineEl = document.getElementById('stat-collected-online');
+                    if (onlineEl) onlineEl.innerHTML = `${collectedOnline.toLocaleString()} <span class="text-[10px]">ج</span>`;
+                    document.getElementById('stat-driver-earnings').innerHTML = `${driverEarnings.toLocaleString()} <span class="text-[10px]">ج</span>`;
+
+                    const netBox = document.getElementById('stat-net-remit-box');
+                    const netTitle = document.getElementById('stat-net-remit-title');
+                    const netSub = document.getElementById('stat-net-remit-sub');
+                    const netValEl = document.getElementById('stat-net-remit');
+
+                    if (netDiff >= 0) {
+                        if (netBox) netBox.className = 'bg-gradient-to-l from-blue-50 to-indigo-50 p-3.5 rounded-2xl border border-blue-100 flex justify-between items-center mb-3';
+                        if (netTitle) { netTitle.innerText = 'الصافي لتوريده كاش للإدارة:'; netTitle.className = 'text-xs font-black text-blue-900 block'; }
+                        if (netSub) { netSub.innerText = 'الكاش في إيدك − عمولة توصيلك'; netSub.className = 'text-[10px] font-bold text-blue-600/80'; }
+                        if (netValEl) { netValEl.className = 'text-2xl font-black text-blue-700'; netValEl.innerHTML = `${netDiff.toLocaleString()} <span class="text-sm">ج</span>`; }
+                    } else {
+                        if (netBox) netBox.className = 'bg-gradient-to-l from-emerald-50 to-teal-50 p-3.5 rounded-2xl border border-emerald-200 flex justify-between items-center mb-3';
+                        if (netTitle) { netTitle.innerText = 'باقي عمولتك عند الإدارة:'; netTitle.className = 'text-xs font-black text-emerald-900 block'; }
+                        if (netSub) { netSub.innerText = 'التحويلات غطت الكاش — لك فرق العمولة'; netSub.className = 'text-[10px] font-bold text-emerald-700/90'; }
+                        if (netValEl) { netValEl.className = 'text-2xl font-black text-emerald-700'; netValEl.innerHTML = `${Math.abs(netDiff).toLocaleString()} <span class="text-sm">ج</span>`; }
+                    }
 
                     document.getElementById('badge-for_driver').innerText = countForDriver;
                     document.getElementById('badge-active').innerText = countDispatched;
@@ -919,7 +1032,10 @@
                     : '<span class="text-xs text-slate-400 font-bold">بدون تفاصيل أصناف</span>';
 
                 if(isCompleted) {
-                    let collectedLabel = isOnline ? '0 ج (مدفوع أونلاين)' : (isSplit ? `${cashToCollect} ج كاش (نص ونص)` : `${cashToCollect} ج`);
+                    let onlineAmt = window.getOrderOnlineAmount(o);
+                    let collectedLabel = isOnline
+                        ? `💳 تحويل للمتجر (${onlineAmt} ج)`
+                        : (isSplit ? `💵 ${cashToCollect} ج كاش + 💳 ${onlineAmt} ج تحويل` : `💵 كاش ${cashToCollect} ج`);
                     htmlStr += `
                     <div class="bg-emerald-50/90 rounded-3xl p-4 border border-emerald-200 shadow-sm relative overflow-hidden">
                         <div class="absolute top-0 right-0 w-1.5 h-full bg-emerald-500"></div>
@@ -1083,37 +1199,138 @@
             });
         };
 
+        let selectedDeliveryPayMethod = 'cash';
+
         window.markOrderCompleted = (orderId) => {
             const order = currentOrdersList.find(o => o.id === orderId);
-            const cashVal = window.getOrderCashToCollect(order);
-            const cashNote = (order && order.paymentMethod === 'online')
-                ? '(مدفوع أونلاين)'
-                : `وتحصيل مبلغ (${cashVal} ج.م كاش)`;
-            
-            askConfirm({
-                title: 'تأكيد تسليم الطلب',
-                message: `هل تم تسليم الطلب للعميل ${cashNote} بنجاح؟`,
-                iconClass: 'fa-circle-check',
-                color: 'emerald',
-                confirmText: 'نعم، تم التسليم',
-                onConfirm: async () => {
-                    const nowObj = new Date();
-                    const nowStr = nowObj.toLocaleDateString('en-US');
-                    const nowTimeStr = nowObj.toLocaleString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    try { 
-                        await db.collection('orders').doc(orderId).update({ 
-                            status: 'completed', 
-                            completedAt: firebase.firestore.FieldValue.serverTimestamp(), 
-                            completedAtMs: Date.now(),
-                            completedAtStr: nowStr, 
-                            completedTimeDisplay: nowTimeStr 
-                        }); 
-                        showToast('عاش يا بطل! تم تسجيل التسليم بنجاح ✅');
-                    } catch(e) {
-                        showToast('حدث خطأ أثناء التحديث، حاول مجدداً', 'error');
-                    }
+            if (!order) return;
+
+            const total = Math.round(Number(order.total) || 0);
+            document.getElementById('dp-order-id').value = orderId;
+            document.getElementById('dp-order-total-val').value = total;
+            document.getElementById('dp-customer-name').innerText = `${order.customerName || 'عميل'} • ${order.zone || ''}`;
+            document.getElementById('dp-order-total-display').innerText = `${total.toLocaleString()} ج.م`;
+            document.getElementById('dp-transfer-note').value = '';
+
+            const prepaidWarn = document.getElementById('dp-prepaid-warning');
+            if (prepaidWarn) prepaidWarn.classList.toggle('hidden', order.paymentMethod !== 'online');
+
+            const initialMethod = (order.paymentMethod === 'online' || order.paymentMethod === 'split') ? order.paymentMethod : 'cash';
+            selectDeliveryPayMethod(initialMethod, order);
+            document.getElementById('delivery-payment-modal').classList.remove('hidden');
+        };
+
+        window.closeDeliveryPaymentModal = () => {
+            document.getElementById('delivery-payment-modal')?.classList.add('hidden');
+        };
+
+        window.selectDeliveryPayMethod = (method, orderObj = null) => {
+            selectedDeliveryPayMethod = method;
+            const total = Number(document.getElementById('dp-order-total-val')?.value) || 0;
+
+            ['cash', 'online', 'split'].forEach(m => {
+                const btn = document.getElementById(`dp-btn-${m}`);
+                if (!btn) return;
+                if (m === method) {
+                    btn.className = 'py-2.5 px-1.5 rounded-xl border-2 border-brand-primary bg-emerald-50 text-brand-primary text-[11px] font-black shadow-sm transition-all flex flex-col items-center gap-1';
+                } else {
+                    btn.className = 'py-2.5 px-1.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 text-[11px] font-bold transition-all flex flex-col items-center gap-1';
                 }
             });
+
+            const splitBox = document.getElementById('dp-split-inputs');
+            const noteWrap = document.getElementById('dp-transfer-note-wrap');
+            if (splitBox) splitBox.classList.toggle('hidden', method !== 'split');
+            if (noteWrap) noteWrap.classList.toggle('hidden', method === 'cash');
+
+            if (method === 'split') {
+                const cashInp = document.getElementById('dp-cash-input');
+                const onlInp = document.getElementById('dp-online-input');
+                let initCash = orderObj && orderObj.paymentMethod === 'split' ? window.getOrderCashToCollect(orderObj) : Math.round(total / 2);
+                initCash = Math.min(total, Math.max(0, initCash));
+                if (cashInp) cashInp.value = initCash;
+                if (onlInp) onlInp.value = Math.max(0, total - initCash);
+            }
+        };
+
+        window.syncDeliverySplit = (side) => {
+            const total = Number(document.getElementById('dp-order-total-val')?.value) || 0;
+            const cashInp = document.getElementById('dp-cash-input');
+            const onlInp = document.getElementById('dp-online-input');
+            if (!cashInp || !onlInp) return;
+
+            if (side === 'cash') {
+                let c = Math.max(0, Math.min(total, Math.round(Number(cashInp.value) || 0)));
+                if (Number(cashInp.value) > total) cashInp.value = c;
+                onlInp.value = Math.max(0, total - c);
+            } else {
+                let o = Math.max(0, Math.min(total, Math.round(Number(onlInp.value) || 0)));
+                if (Number(onlInp.value) > total) onlInp.value = o;
+                cashInp.value = Math.max(0, total - o);
+            }
+        };
+
+        window.confirmDeliveryWithPayment = async () => {
+            const orderId = document.getElementById('dp-order-id').value;
+            const total = Math.round(Number(document.getElementById('dp-order-total-val').value) || 0);
+            const order = currentOrdersList.find(o => o.id === orderId);
+            if (!order) return;
+
+            let method = selectedDeliveryPayMethod;
+            let paidCash = total;
+            let paidOnline = 0;
+
+            if (method === 'online') {
+                paidCash = 0;
+                paidOnline = total;
+            } else if (method === 'split') {
+                paidCash = Math.max(0, Math.min(total, Math.round(Number(document.getElementById('dp-cash-input')?.value) || 0)));
+                paidOnline = Math.max(0, total - paidCash);
+                if (paidCash === 0) method = 'online';
+                else if (paidOnline === 0) method = 'cash';
+            }
+
+            const btn = document.getElementById('dp-confirm-btn');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
+
+            const nowObj = new Date();
+            const nowStr = nowObj.toLocaleDateString('en-US');
+            const nowTimeStr = nowObj.toLocaleString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            const payload = {
+                status: 'completed',
+                paymentMethod: method,
+                paidCash: paidCash,
+                paidOnline: paidOnline,
+                completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                completedAtMs: Date.now(),
+                completedAtStr: nowStr,
+                completedTimeDisplay: nowTimeStr
+            };
+
+            const transferNote = (document.getElementById('dp-transfer-note')?.value || '').trim();
+            const methodChanged = order.paymentMethod !== method || Number(order.paidCash) !== paidCash;
+            if (transferNote || methodChanged) {
+                const paySummary = method === 'online'
+                    ? `💳 تحويل كامل (${paidOnline} ج)`
+                    : (method === 'split' ? `⚖️ ${paidCash} ج كاش + ${paidOnline} ج تحويل` : `💵 كاش كامل (${paidCash} ج)`);
+                const noteLine = `[تأكيد الدفع ${nowTimeStr}] ${paySummary}${transferNote ? ' — ' + transferNote : ''}`;
+                payload.driverNote = order.driverNote ? (order.driverNote + '\n---\n' + noteLine) : noteLine;
+            }
+
+            try {
+                await db.collection('orders').doc(orderId).update(payload);
+                closeDeliveryPaymentModal();
+                showToast('عاش يا بطل! تم تسجيل التسليم وتحديث العهدة ✅');
+            } catch (e) {
+                console.error(e);
+                showToast('حدث خطأ أثناء التحديث، تأكد من الاتصال والصلاحيات', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
         };
 
         window.markOrderNoAnswer = (orderId) => {
@@ -1141,11 +1358,12 @@
                 return;
             }
             
+            const netTitleText = (document.getElementById('stat-net-remit-title')?.innerText || 'الصافي').replace(':', '').trim();
             const netRemitText = document.getElementById('stat-net-remit').innerText;
 
             askConfirm({
                 title: 'توريد النقدية وتقفيل الشيفت',
-                message: `سيتم تقفيل (${completedOrders.length}) طلب مكتمل وتصفير محفظتك الحالية بصافي توريد (${netRemitText}). هل أنت متأكد؟`,
+                message: `سيتم تقفيل (${completedOrders.length}) طلب مكتمل وتصفير محفظتك الحالية (${netTitleText}: ${netRemitText}). هل أنت متأكد؟`,
                 iconClass: 'fa-hand-holding-dollar',
                 color: 'dark',
                 confirmText: 'تأكيد التوريد',
@@ -1465,7 +1683,9 @@
         }
 
         document.addEventListener('backbutton', (e) => {
-            if (!document.getElementById('problem-modal').classList.contains('hidden')) {
+            if (!document.getElementById('delivery-payment-modal').classList.contains('hidden')) {
+                e.preventDefault(); closeDeliveryPaymentModal();
+            } else if (!document.getElementById('problem-modal').classList.contains('hidden')) {
                 e.preventDefault(); closeProblemModal();
             } else if (!document.getElementById('confirm-modal').classList.contains('hidden')) {
                 e.preventDefault(); closeConfirmModal();
